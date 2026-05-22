@@ -5,7 +5,7 @@
 
 const BASE_URL = process.env.NEXT_PUBLIC_AI_BASE_URL ?? "https://api.deepseek.com/v1";
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY ?? "";
-const MODEL = process.env.NEXT_PUBLIC_AI_MODEL ?? "deepseek-chat";
+const MODEL = process.env.NEXT_PUBLIC_AI_MODEL ?? "deepseek-v4-flash";
 
 export async function chatCompletion(prompt: string, systemPrompt?: string) {
   const res = await fetch(`${BASE_URL}/chat/completions`, {
