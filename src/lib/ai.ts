@@ -20,7 +20,7 @@ export async function chatCompletion(prompt: string, systemPrompt?: string) {
         ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
         { role: "user", content: prompt },
       ],
-      temperature: 0.3,
+      temperature: 0,
     }),
   });
 
@@ -36,15 +36,13 @@ export function isAiConfigured(): boolean {
   return API_KEY.length > 0;
 }
 
-const TRANSLATE_PROMPT = `你是一位考研英语辅导专家。请分析以下英文句子，返回 JSON（不要 markdown 标记）：
+const TRANSLATE_PROMPT = `你是考研英语辅导专家。分析英文句子，只返回 JSON（不要 markdown）：
 
 {
-  "translation": "精翻译文（中文，贴合考研翻译风格，准确且通顺）",
-  "grammar": "语法分析（简洁说明句子结构、从句类型、关键语法点，50字以内）",
-  "keywords": ["重点词汇1=释义", "重点词汇2=释义"]
-}
-
-注意：结合上下文给出最准确的翻译和理解。`;
+  "translation": "中文精翻",
+  "grammar": "语法结构简述（30字内）",
+  "keywords": ["词1=义", "词2=义", "词3=义"]
+}`;
 
 export async function chatTranslation(sentence: string, context?: string) {
   if (!isAiConfigured()) return { error: "AI 未配置" };
@@ -62,19 +60,15 @@ export async function chatTranslation(sentence: string, context?: string) {
   }
 }
 
-const VOCAB_PROMPT = `你是一位考研英语辅导专家，擅长讲解"熟词生义"。对于用户提供的单词和语境句子，返回 JSON（不要 markdown 标记）：
+const VOCAB_PROMPT = `分析英文单词在句子中的含义，只返回 JSON（不要 markdown）：
 
 {
-  "word": "单词原形",
-  "basicMeaning": "基础释义（最常见的意思，中文）",
-  "contextMeaning": "语境释义（该单词在这句话中的精确含义，中文）",
-  "isAdvanced": true或false（是否属于"熟词生义"——即基础意思很简单但在语境中是不同的/生僻的含义）
+  "word": "原形",
+  "basicMeaning": "常见释义",
+  "contextMeaning": "句中含义",
+  "isAdvanced": true或false
 }
-
-注意：
-- "熟词生义"指那些看起来简单但在具体语境下有特殊含义的词
-- 基础释义要简洁，语境释义要结合句子
-- isAdvanced 为 true 表示值得记录学习`;
+isAdvanced 为 true 表示熟词生义（常见词在语境中有特殊含义）。`;
 
 export async function chatVocab(word: string, sentence: string) {
   if (!isAiConfigured()) return { error: "AI 未配置" };

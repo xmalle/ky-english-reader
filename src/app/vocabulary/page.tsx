@@ -11,6 +11,7 @@ import {
   Loader2,
   Check,
   BookOpen,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +40,7 @@ export default function VocabularyPage() {
   const [tab, setTab] = useState<"all" | "review">("review");
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<Record<string, Sm2Grade | null>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -233,10 +235,22 @@ export default function VocabularyPage() {
                       )}
                     </div>
 
-                    {/* 原句 */}
-                    <p className="mt-2 text-sm text-muted-foreground italic line-clamp-2 border-l-2 border-muted pl-3">
-                      {v.source_sentence}
-                    </p>
+                    {/* 原句（可展开） */}
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setExpanded(prev => ({ ...prev, [v.id]: !prev[v.id] }))}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 mb-1"
+                      >
+                        <BookOpen className="size-3" />
+                        真题例句
+                        <ChevronDown className={`size-3 transition-transform ${expanded[v.id] ? "rotate-180" : ""}`} />
+                      </button>
+                      {expanded[v.id] && (
+                        <p className="text-sm text-muted-foreground italic border-l-2 border-primary/30 pl-3 py-1 bg-muted/30 rounded-r-md">
+                          {v.source_sentence}
+                        </p>
+                      )}
+                    </div>
 
                     {/* 复习信息 */}
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">

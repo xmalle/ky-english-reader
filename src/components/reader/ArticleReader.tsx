@@ -126,38 +126,45 @@ export function ArticleReader({ passage }: { passage: Passage }) {
     [allSentences, passage.id],
   );
 
-  const handleTextSelection = useCallback((delay?: number) => {
-    const check = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-        setSelection(null);
-        return;
-      }
+  // 使用 selectionchange 事件监听划词（同时支持桌面和移动端）
+  useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout>;
 
-      const word = sel.toString().trim();
-      // 只处理单个单词或短语
-      if (word.split(/\s+/).length > 3) return;
+    function handleSelectionChange() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+          setSelection(null);
+          return;
+        }
 
-      const range = sel.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+        // 检查选区是否在文章区域内
+        if (!articleRef.current) return;
+        const range = sel.getRangeAt(0);
+        if (!articleRef.current.contains(range.commonAncestorContainer)) return;
 
-      // 获取选中词所在的句子元素和索引
-      const sentenceEl = range.startContainer.parentElement?.closest(
-        "[data-sentence]",
-      );
-      const sentence = sentenceEl?.textContent ?? "";
-      const sentenceIndex = sentenceEl
-        ? Number(sentenceEl.getAttribute("data-sentence-index"))
-        : -1;
+        const word = sel.toString().trim();
+        if (word.split(/\s+/).length > 3) return;
 
-      setSelection({ word, sentence, sentenceIndex, rect });
-    };
+        const rect = range.getBoundingClientRect();
+        const sentenceEl = range.startContainer.parentElement?.closest(
+          "[data-sentence]",
+        );
+        const sentence = sentenceEl?.textContent ?? "";
+        const sentenceIndex = sentenceEl
+          ? Number(sentenceEl.getAttribute("data-sentence-index"))
+          : -1;
 
-    if (delay) {
-      setTimeout(check, delay);
-    } else {
-      check();
+        setSelection({ word, sentence, sentenceIndex, rect });
+      }, 200);
     }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      clearTimeout(debounceTimer);
+    };
   }, []);
 
   const mobilePanelOpen = !!selectedSentence && (!!analysis || loading);
@@ -203,9 +210,7 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                         onClick={() =>
                           handleSentenceClick(globalIdx, sentence.text)
                         }
-                        onMouseUp={() => handleTextSelection()}
-                        onTouchEnd={() => handleTextSelection(100)}
-                        className={`inline-block cursor-pointer px-1.5 py-0.5 rounded-md transition-colors leading-7 text-[15px] select-text
+                        className={`inline-block cursor-pointer px-1.5 py-0.5 rounded-md transition-colors leading-7 text-[15px] select-text touch-pan-y
                           ${markClass}
                           ${
                             isSelected
