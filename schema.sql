@@ -198,22 +198,10 @@ CREATE TABLE IF NOT EXISTS user_sentence_marks (
 CREATE INDEX IF NOT EXISTS idx_user_sentence_marks_lookup
   ON user_sentence_marks(user_id, passage_id);
 
+-- RLS：单用户模式开放访问
 ALTER TABLE user_sentence_marks ENABLE ROW LEVEL SECURITY;
 
--- 用户只能读写自己的标记记录
-CREATE POLICY "user_sentence_marks_select_own"
-  ON user_sentence_marks FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "user_sentence_marks_insert_own"
-  ON user_sentence_marks FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "user_sentence_marks_update_own"
-  ON user_sentence_marks FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "user_sentence_marks_delete_own"
-  ON user_sentence_marks FOR DELETE
-  USING (auth.uid() = user_id);
+CREATE POLICY "user_sentence_marks_all_open"
+  ON user_sentence_marks FOR ALL
+  USING (true)
+  WITH CHECK (true);

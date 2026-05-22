@@ -22,7 +22,7 @@ export default function RootLayout({
           "'Inter', 'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', sans-serif",
       }}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="h-full flex flex-col">
         <TooltipProvider delay={300}>
           {children}
         </TooltipProvider>

@@ -29,6 +29,7 @@ export function WordPopover({ word, sentence, sentenceIndex, rect, passageId, on
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const popRef = useRef<HTMLDivElement>(null);
+  const openTimeRef = useRef(Date.now());
 
   useEffect(() => {
     let cancelled = false;
@@ -80,15 +81,25 @@ export function WordPopover({ word, sentence, sentenceIndex, rect, passageId, on
     return () => { cancelled = true; };
   }, [word, sentence, passageId, sentenceIndex]);
 
-  // 点击外部关闭
+  // 点击外部关闭（适配桌面与移动端）
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    openTimeRef.current = Date.now();
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      // 打开后 500ms 内忽略外部事件，防止移动端选中文字后的合成事件误关闭
+      if (Date.now() - openTimeRef.current < 500) return;
       if (popRef.current && !popRef.current.contains(e.target as Node)) {
         onClose();
       }
     }
-    setTimeout(() => document.addEventListener("click", handleClick), 100);
-    return () => document.removeEventListener("click", handleClick);
+    const timer = setTimeout(() => {
+      document.addEventListener("click", handleOutside);
+      document.addEventListener("touchend", handleOutside);
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("click", handleOutside);
+      document.removeEventListener("touchend", handleOutside);
+    };
   }, [onClose]);
 
   async function handleSave() {

@@ -126,39 +126,47 @@ export function ArticleReader({ passage }: { passage: Passage }) {
     [allSentences, passage.id],
   );
 
-  const handleTextSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-      setSelection(null);
-      return;
+  const handleTextSelection = useCallback((delay?: number) => {
+    const check = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        setSelection(null);
+        return;
+      }
+
+      const word = sel.toString().trim();
+      // 只处理单个单词或短语
+      if (word.split(/\s+/).length > 3) return;
+
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+
+      // 获取选中词所在的句子元素和索引
+      const sentenceEl = range.startContainer.parentElement?.closest(
+        "[data-sentence]",
+      );
+      const sentence = sentenceEl?.textContent ?? "";
+      const sentenceIndex = sentenceEl
+        ? Number(sentenceEl.getAttribute("data-sentence-index"))
+        : -1;
+
+      setSelection({ word, sentence, sentenceIndex, rect });
+    };
+
+    if (delay) {
+      setTimeout(check, delay);
+    } else {
+      check();
     }
-
-    const word = sel.toString().trim();
-    // 只处理单个单词或短语
-    if (word.split(/\s+/).length > 3) return;
-
-    const range = sel.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-
-    // 获取选中词所在的句子元素和索引
-    const sentenceEl = range.startContainer.parentElement?.closest(
-      "[data-sentence]",
-    );
-    const sentence = sentenceEl?.textContent ?? "";
-    const sentenceIndex = sentenceEl
-      ? Number(sentenceEl.getAttribute("data-sentence-index"))
-      : -1;
-
-    setSelection({ word, sentence, sentenceIndex, rect });
   }, []);
 
   const mobilePanelOpen = !!selectedSentence && (!!analysis || loading);
 
   return (
-    <div className="flex flex-1 overflow-hidden relative">
+    <div className="flex flex-1 overflow-hidden relative min-h-0">
       {/* ========== 左侧：文章阅读区 ========== */}
-      <div className="flex-1 flex flex-col min-w-0 border-r">
-        <ScrollArea className="flex-1">
+      <div className="flex-1 flex flex-col min-w-0 border-r min-h-0">
+        <ScrollArea className="flex-1 min-h-0">
           <article
             ref={articleRef}
             className={`px-6 py-8 max-w-3xl mx-auto ${
@@ -195,7 +203,8 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                         onClick={() =>
                           handleSentenceClick(globalIdx, sentence.text)
                         }
-                        onMouseUp={handleTextSelection}
+                        onMouseUp={() => handleTextSelection()}
+                        onTouchEnd={() => handleTextSelection(100)}
                         className={`inline-block cursor-pointer px-1.5 py-0.5 rounded-md transition-colors leading-7 text-[15px] select-text
                           ${markClass}
                           ${
@@ -225,7 +234,7 @@ export function ArticleReader({ passage }: { passage: Passage }) {
             精读解析
           </h3>
         </div>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-5">
             {loading ? (
               <AnalysisSkeleton />
