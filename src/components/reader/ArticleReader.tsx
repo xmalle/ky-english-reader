@@ -51,6 +51,7 @@ export function ArticleReader({ passage }: { passage: Passage }) {
   // 全局句索引用 Ref 持久化
   const sentenceMap = useRef<Map<Element, number>>(new Map());
   const articleRef = useRef<HTMLDivElement>(null);
+  const wordTapRef = useRef(false); // 标记是否由点词触发
 
   // 句子标记状态：sentence_index → mark_type
   const [marks, setMarks] = useState<Map<number, MarkType>>(new Map());
@@ -134,6 +135,11 @@ export function ArticleReader({ passage }: { passage: Passage }) {
     let debounceTimer: ReturnType<typeof setTimeout>;
 
     function handleSelectionChange() {
+      // 点词模式下由 handleWordTap 控制弹窗，不响应 selectionchange
+      if (wordTapRef.current) {
+        wordTapRef.current = false;
+        return;
+      }
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         const sel = window.getSelection();
@@ -176,6 +182,8 @@ export function ArticleReader({ passage }: { passage: Passage }) {
   const handleWordTap = useCallback((e: React.MouseEvent, word: string, sentenceText: string, sentenceIdx: number) => {
     if (!wordTapMode) return;
     e.stopPropagation();
+    e.preventDefault();
+    wordTapRef.current = true;
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setSelection({ word, sentence: sentenceText, sentenceIndex: sentenceIdx, rect });
   }, [wordTapMode]);
