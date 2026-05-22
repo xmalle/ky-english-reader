@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Languages, GitBranch, BookOpen } from "lucide-react";
+import { Languages, GitBranch, BookOpen, Pointer } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -44,6 +44,9 @@ export function ArticleReader({ passage }: { passage: Passage }) {
     sentenceIndex: number;
     rect: DOMRect;
   } | null>(null);
+
+  // 移动端点词模式
+  const [wordTapMode, setWordTapMode] = useState(false);
 
   // 全局句索引用 Ref 持久化
   const sentenceMap = useRef<Map<Element, number>>(new Map());
@@ -169,10 +172,40 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 
   const mobilePanelOpen = !!selectedSentence && (!!analysis || loading);
 
+  // 移动端点词查义
+  const handleWordTap = useCallback((e: React.MouseEvent, word: string, sentenceText: string, sentenceIdx: number) => {
+    if (!wordTapMode) return;
+    e.stopPropagation();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setSelection({ word, sentence: sentenceText, sentenceIndex: sentenceIdx, rect });
+  }, [wordTapMode]);
+
+  // 拆分句子为单词（保持标点附着）
+  function splitWords(text: string): string[] {
+    return text.match(/[\w']+[.,;:!?"']*|\s+|[^\w\s]+/g)?.filter(w => w.trim()) ?? [text];
+  }
+
   return (
     <div className="flex flex-1 overflow-hidden relative min-h-0">
       {/* ========== 左侧：文章阅读区 ========== */}
       <div className="flex-1 flex flex-col min-w-0 border-r min-h-0">
+        {/* 移动端点词模式按钮 */}
+        <div className="lg:hidden flex items-center gap-2 px-4 py-2 border-b shrink-0 bg-muted/30">
+          <button
+            onClick={() => setWordTapMode(!wordTapMode)}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+              wordTapMode
+                ? "bg-primary text-primary-foreground"
+                : "bg-background border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Pointer className="size-3.5" />
+            {wordTapMode ? "点词模式开" : "点词查义"}
+          </button>
+          {wordTapMode && (
+            <span className="text-xs text-muted-foreground">点击句中单词即可查义</span>
+          )}
+        </div>
         <ScrollArea className="flex-1 min-h-0">
           <article
             ref={articleRef}
@@ -199,6 +232,8 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                     const markClass = markType ? MARK_STYLES[markType] : "";
                     const isSelected = selectedSentence?.index === globalIdx;
 
+                    const words = splitWords(sentence.text);
+
                     return (
                       <span
                         key={`${para.index}-${sentence.index}`}
@@ -220,7 +255,25 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                                 : "text-foreground"
                           }`}
                       >
-                        {sentence.text}{" "}
+                        {words.map((w, wi) => (
+                          <span
+                            key={wi}
+                            data-word={w.replace(/[.,;:!?"']/g, "")}
+                            onClick={(e) => handleWordTap(
+                              e,
+                              w.replace(/[.,;:!?"']/g, ""),
+                              sentence.text,
+                              globalIdx
+                            )}
+                            className={
+                              wordTapMode
+                                ? "cursor-pointer hover:bg-primary/20 hover:rounded px-0.5 -mx-0.5 transition-colors"
+                                : ""
+                            }
+                          >
+                            {w}{" "}
+                          </span>
+                        ))}
                       </span>
                     );
                   })}
