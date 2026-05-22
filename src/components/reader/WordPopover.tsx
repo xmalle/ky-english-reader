@@ -5,7 +5,7 @@ import { Loader2, Plus, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { chatVocab } from "@/lib/ai";
-import { addVocabulary } from "@/lib/data";
+import { addVocabulary, getCachedWordContextMeaning, saveWordContextMeaning } from "@/lib/data";
 
 interface VocabResult {
   word?: string;
@@ -18,12 +18,13 @@ interface VocabResult {
 interface Props {
   word: string;
   sentence: string;
+  sentenceIndex: number;
   rect: DOMRect;
   passageId: string;
   onClose: () => void;
 }
 
-export function WordPopover({ word, sentence, rect, passageId, onClose }: Props) {
+export function WordPopover({ word, sentence, sentenceIndex, rect, passageId, onClose }: Props) {
   const [result, setResult] = useState<VocabResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,10 +35,40 @@ export function WordPopover({ word, sentence, rect, passageId, onClose }: Props)
     async function fetchVocab() {
       setLoading(true);
       try {
+        // 1. 先查缓存
+        const cached = await getCachedWordContextMeaning(
+          passageId,
+          sentenceIndex,
+          word,
+        );
+        if (cached) {
+          if (!cancelled) {
+            setResult({
+              word: cached.word,
+              basicMeaning: cached.basic_meaning,
+              contextMeaning: cached.context_meaning ?? undefined,
+            });
+            setLoading(false);
+          }
+          return;
+        }
+
+        // 2. 缓存未命中，调用 AI
         const data = await chatVocab(word, sentence);
         if (!cancelled) {
-          if (data.error) toast.error(data.error);
-          else setResult(data);
+          if (data.error) {
+            toast.error(data.error);
+          } else {
+            setResult(data);
+            // 3. 异步存入缓存
+            saveWordContextMeaning(
+              passageId,
+              sentenceIndex,
+              word,
+              data.basicMeaning ?? "",
+              data.contextMeaning ?? "",
+            ).catch(() => {});
+          }
         }
       } catch {
         if (!cancelled) toast.error("获取释义失败");
@@ -47,7 +78,7 @@ export function WordPopover({ word, sentence, rect, passageId, onClose }: Props)
     }
     fetchVocab();
     return () => { cancelled = true; };
-  }, [word, sentence]);
+  }, [word, sentence, passageId, sentenceIndex]);
 
   // 点击外部关闭
   useEffect(() => {

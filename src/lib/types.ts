@@ -46,3 +46,38 @@ export type NewVocabulary = Omit<
 
 // SM-2 算法评分: 0=完全忘记, 1=记得但困难, 2=记得但犹豫, 3=轻松, 4=太简单, 5=完美
 export type Sm2Grade = 0 | 1 | 2 | 3 | 4 | 5;
+
+/** AI 长难句分析缓存 */
+export interface SentenceAnalysis {
+  id: string;
+  passage_id: string;
+  sentence_index: number;
+  original_text: string;
+  translation: string;
+  syntax_analysis: string | null;
+  created_at: string;
+}
+
+/** 句子标记类型 */
+export type MarkType = "highlight-yellow" | "highlight-green" | "underline-red";
+
+/** 用户句子标记 */
+export interface SentenceMark {
+  id: string;
+  user_id: string;
+  passage_id: string;
+  sentence_index: number;
+  mark_type: MarkType;
+  created_at: string;
+}
+
+/** AI 划词释义缓存 */
+export interface WordContextMeaning {
+  id: string;
+  passage_id: string;
+  sentence_index: number;
+  word: string;
+  basic_meaning: string;
+  context_meaning: string | null;
+  created_at: string;
+}

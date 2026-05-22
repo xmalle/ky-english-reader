@@ -1,14 +1,12 @@
 "use client";
 
-import { Loader2, Languages, GitBranch, BookOpen, X } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Languages, GitBranch, BookOpen, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useCallback } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { MarkToolbar } from "./MarkToolbar";
+import { AnalysisSkeleton } from "./ArticleReader";
+import type { MarkType } from "@/lib/types";
 
 interface TranslateResult {
   translation?: string;
@@ -23,31 +21,63 @@ interface Props {
   loading: boolean;
   analysis: TranslateResult | null;
   sentence: { index: number; text: string } | null;
+  currentMark: MarkType | null;
+  onMark: (type: MarkType) => void;
+  onClearMark: () => void;
 }
 
-export function MobileSheet({
-  open,
-  onClose,
-  loading,
-  analysis,
-  sentence,
-}: Props) {
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="bottom" className="max-h-[60vh] overflow-y-auto">
-        <SheetHeader className="text-left">
-          <SheetTitle className="flex items-center gap-2 text-base">
-            <Languages className="size-4" />
-            精读解析
-          </SheetTitle>
-        </SheetHeader>
+export function MobileSheet({ open, onClose, loading, analysis, sentence, currentMark, onMark, onClearMark }: Props) {
+  const [collapsed, setCollapsed] = useState(false);
 
-        <div className="mt-4 pb-6">
+  const handleToggle = useCallback(() => {
+    setCollapsed((prev) => !prev);
+  }, []);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t rounded-t-xl shadow-lg transition-all duration-300 ease-out"
+      style={{ maxHeight: collapsed ? "52px" : "45vh" }}
+    >
+      {/* 拖拽手柄 + 标题栏 */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b shrink-0">
+        <button
+          onClick={handleToggle}
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex-1 min-w-0"
+        >
+          {collapsed ? (
+            <ChevronUp className="size-4 shrink-0" />
+          ) : (
+            <ChevronDown className="size-4 shrink-0" />
+          )}
+          <span className="truncate">
+            <Languages className="size-3.5 inline mr-1.5" />
+            精读解析
+            {sentence && !collapsed && (
+              <span className="text-xs text-muted-foreground ml-2">
+                {sentence.text.slice(0, 25)}...
+              </span>
+            )}
+          </span>
+        </button>
+        <button
+          onClick={onClose}
+          className="p-1 rounded-md hover:bg-muted transition-colors shrink-0 ml-2"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      {/* 内容区 */}
+      <div
+        className={`overflow-y-auto transition-all duration-300 ${
+          collapsed ? "max-h-0" : "max-h-[calc(45vh-52px)]"
+        }`}
+      >
+        <div className="px-4 py-3 pb-6">
           {loading ? (
-            <div className="flex items-center gap-3 text-muted-foreground py-8 justify-center">
-              <Loader2 className="size-5 animate-spin" />
-              <span className="text-sm">AI 正在分析...</span>
-            </div>
+            <AnalysisSkeleton />
           ) : analysis ? (
             <div className="space-y-4">
               {/* 原句 */}
@@ -61,6 +91,17 @@ export function MobileSheet({
                 </p>
               </div>
 
+              {/* 标记工具栏 */}
+              {sentence && (
+                <div className="py-1">
+                  <MarkToolbar
+                    currentMark={currentMark}
+                    onMark={onMark}
+                    onClear={onClearMark}
+                  />
+                </div>
+              )}
+
               <Separator />
 
               {/* 精翻 */}
@@ -69,9 +110,7 @@ export function MobileSheet({
                   <Languages className="size-3" />
                   精翻译文
                 </div>
-                <p className="text-sm leading-relaxed">
-                  {analysis.translation}
-                </p>
+                <p className="text-sm leading-relaxed">{analysis.translation}</p>
               </div>
 
               {/* 语法 */}
@@ -116,7 +155,7 @@ export function MobileSheet({
             </div>
           ) : null}
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   );
 }

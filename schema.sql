@@ -129,3 +129,91 @@ CREATE TRIGGER passages_updated_at
 CREATE TRIGGER vocabulary_updated_at
   BEFORE UPDATE ON vocabulary
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- sentence_analyses: 长难句 AI 分析缓存
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sentence_analyses (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  passage_id      UUID NOT NULL REFERENCES passages(id) ON DELETE CASCADE,
+  sentence_index  SMALLINT NOT NULL,
+  original_text   TEXT NOT NULL,
+  translation     TEXT NOT NULL,
+  syntax_analysis TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE(passage_id, sentence_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sentence_analyses_lookup
+  ON sentence_analyses(passage_id, sentence_index);
+
+-- ============================================================
+-- word_context_meanings: 划词语境释义缓存
+-- ============================================================
+CREATE TABLE IF NOT EXISTS word_context_meanings (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  passage_id      UUID NOT NULL REFERENCES passages(id) ON DELETE CASCADE,
+  sentence_index  SMALLINT NOT NULL,
+  word            TEXT NOT NULL,
+  basic_meaning   TEXT NOT NULL,
+  context_meaning TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE(passage_id, sentence_index, word)
+);
+
+CREATE INDEX IF NOT EXISTS idx_word_context_lookup
+  ON word_context_meanings(passage_id, sentence_index, word);
+
+-- RLS 策略
+ALTER TABLE sentence_analyses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "sentence_analyses_all_open"
+  ON sentence_analyses FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+ALTER TABLE word_context_meanings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "word_context_meanings_all_open"
+  ON word_context_meanings FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ============================================================
+-- user_sentence_marks: 用户句子级高亮/下划线标记
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_sentence_marks (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001',
+  passage_id      UUID NOT NULL REFERENCES passages(id) ON DELETE CASCADE,
+  sentence_index  SMALLINT NOT NULL,
+  mark_type       VARCHAR(30) NOT NULL CHECK (mark_type IN ('highlight-yellow', 'highlight-green', 'underline-red')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE(user_id, passage_id, sentence_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_sentence_marks_lookup
+  ON user_sentence_marks(user_id, passage_id);
+
+ALTER TABLE user_sentence_marks ENABLE ROW LEVEL SECURITY;
+
+-- 用户只能读写自己的标记记录
+CREATE POLICY "user_sentence_marks_select_own"
+  ON user_sentence_marks FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "user_sentence_marks_insert_own"
+  ON user_sentence_marks FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_sentence_marks_update_own"
+  ON user_sentence_marks FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "user_sentence_marks_delete_own"
+  ON user_sentence_marks FOR DELETE
+  USING (auth.uid() = user_id);

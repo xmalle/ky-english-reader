@@ -1,0 +1,44 @@
+[
+  {
+    "year": 2010,
+    "text_num": "Text1",
+    "title": "The Change in the Newspaper Industry",
+    "paragraphs": [
+      {
+        "sentences": [
+          {
+            "en": "Of all the changes that have taken place in English-language newspapers during the past quarter-century, perhaps the most far-reaching has been the inexorable decline in the scope and seriousness of their arts coverage.",
+            "zh": "在过去25年英语报纸发生的所有变化中，影响最深远的或许是其艺术报道范围和严肃性的无情衰退。"
+          },
+          {
+            "en": "It is difficult to the point of impossibility for the average reader under the age of forty to imagine a time when high-quality arts criticism could be found in most big-city newspapers.",
+            "zh": "对于40岁以下的普通读者来说，很难想象一个在大多数大城市报纸上都能找到高质量艺术评论的时代。"
+          }
+        ]
+      },
+      {
+        "sentences": [
+          {
+            "en": "Yet a considerable number of the most significant collections of criticism published in the 20th century consisted in large part of newspaper reviews.",
+            "zh": "然而，20世纪出版的大量最重要的评论集在很大程度上由报纸评论组成。"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "year": 2010,
+    "text_num": "Text2",
+    "title": "The Business Method Patent",
+    "sentences": [
+      {
+        "en": "Over the past decade, thousands of patents have been granted for what are called business methods.",
+        "zh": "在过去的十年中，数以千计的专利被授予了所谓的商业方法。"
+      },
+      {
+        "en": "A business method patent is a patent for a method of doing business.",
+        "zh": "商业方法专利是对做生意方法的一种专利。"
+      }
+    ]
+  }
+]

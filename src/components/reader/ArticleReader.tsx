@@ -1,16 +1,23 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { Loader2, Languages, GitBranch, BookOpen } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Languages, GitBranch, BookOpen } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { WordPopover } from "./WordPopover";
 import { MobileSheet } from "./MobileSheet";
+import { MarkToolbar, MARK_STYLES } from "./MarkToolbar";
 import { chatTranslation } from "@/lib/ai";
-import type { Passage, PassageContent } from "@/lib/types";
+import {
+  getCachedSentenceAnalysis,
+  saveSentenceAnalysis,
+  getSentenceMarks,
+  upsertSentenceMark,
+  deleteSentenceMark,
+} from "@/lib/data";
+import type { Passage, PassageContent, MarkType } from "@/lib/types";
 
 interface TranslateResult {
   translation?: string;
@@ -34,6 +41,7 @@ export function ArticleReader({ passage }: { passage: Passage }) {
   const [selection, setSelection] = useState<{
     word: string;
     sentence: string;
+    sentenceIndex: number;
     rect: DOMRect;
   } | null>(null);
 
@@ -41,14 +49,55 @@ export function ArticleReader({ passage }: { passage: Passage }) {
   const sentenceMap = useRef<Map<Element, number>>(new Map());
   const articleRef = useRef<HTMLDivElement>(null);
 
+  // 句子标记状态：sentence_index → mark_type
+  const [marks, setMarks] = useState<Map<number, MarkType>>(new Map());
+
+  // 加载当前文章的标记
+  useEffect(() => {
+    getSentenceMarks(passage.id).then(setMarks);
+  }, [passage.id]);
+
+  // 乐观标记句子
+  const handleMark = useCallback(
+    (sentenceIndex: number, markType: MarkType) => {
+      setMarks((prev) => new Map(prev).set(sentenceIndex, markType));
+      upsertSentenceMark(passage.id, sentenceIndex, markType).catch(() => {});
+    },
+    [passage.id],
+  );
+
+  // 乐观清除标记
+  const handleClearMark = useCallback(
+    (sentenceIndex: number) => {
+      setMarks((prev) => {
+        const next = new Map(prev);
+        next.delete(sentenceIndex);
+        return next;
+      });
+      deleteSentenceMark(passage.id, sentenceIndex).catch(() => {});
+    },
+    [passage.id],
+  );
+
   const handleSentenceClick = useCallback(
     async (index: number, text: string) => {
       setSelectedSentence({ index, text });
       setLoading(true);
       setAnalysis(null);
 
+      // 1. 先查缓存
+      const cached = await getCachedSentenceAnalysis(passage.id, index);
+      if (cached) {
+        setAnalysis({
+          translation: cached.translation,
+          grammar: cached.syntax_analysis ?? undefined,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 2. 缓存未命中，调用 AI
       try {
-        // 传上下文：前后各一句
         const prev = allSentences[index - 1]?.text ?? "";
         const next = allSentences[index + 1]?.text ?? "";
         const context = [prev, next].filter(Boolean).join(" ");
@@ -59,13 +108,22 @@ export function ArticleReader({ passage }: { passage: Passage }) {
           return;
         }
         setAnalysis(data);
+
+        // 3. 异步存入缓存（不阻塞 UI）
+        saveSentenceAnalysis(
+          passage.id,
+          index,
+          text,
+          data.translation ?? "",
+          data.grammar ?? "",
+        ).catch(() => {});
       } catch {
         toast.error("请求失败，请检查网络");
       } finally {
         setLoading(false);
       }
     },
-    [allSentences],
+    [allSentences, passage.id],
   );
 
   const handleTextSelection = useCallback(() => {
@@ -82,21 +140,31 @@ export function ArticleReader({ passage }: { passage: Passage }) {
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
 
-    // 获取选中词所在的句子
+    // 获取选中词所在的句子元素和索引
     const sentenceEl = range.startContainer.parentElement?.closest(
       "[data-sentence]",
     );
     const sentence = sentenceEl?.textContent ?? "";
+    const sentenceIndex = sentenceEl
+      ? Number(sentenceEl.getAttribute("data-sentence-index"))
+      : -1;
 
-    setSelection({ word, sentence, rect });
+    setSelection({ word, sentence, sentenceIndex, rect });
   }, []);
+
+  const mobilePanelOpen = !!selectedSentence && (!!analysis || loading);
 
   return (
     <div className="flex flex-1 overflow-hidden relative">
       {/* ========== 左侧：文章阅读区 ========== */}
       <div className="flex-1 flex flex-col min-w-0 border-r">
         <ScrollArea className="flex-1">
-          <article ref={articleRef} className="px-6 py-8 max-w-3xl mx-auto">
+          <article
+            ref={articleRef}
+            className={`px-6 py-8 max-w-3xl mx-auto ${
+              mobilePanelOpen ? "pb-[48vh]" : ""
+            }`}
+          >
             {/* 标题 */}
             {passage.title && (
               <h2 className="text-xl font-bold mb-6">{passage.title}</h2>
@@ -112,6 +180,10 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                         .slice(0, para.index)
                         .flatMap((p) => p.sentences).length + sentence.index;
 
+                    const markType = marks.get(globalIdx);
+                    const markClass = markType ? MARK_STYLES[markType] : "";
+                    const isSelected = selectedSentence?.index === globalIdx;
+
                     return (
                       <span
                         key={`${para.index}-${sentence.index}`}
@@ -125,10 +197,13 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                         }
                         onMouseUp={handleTextSelection}
                         className={`inline-block cursor-pointer px-1.5 py-0.5 rounded-md transition-colors leading-7 text-[15px] select-text
+                          ${markClass}
                           ${
-                            selectedSentence?.index === globalIdx
-                              ? "bg-primary/15 text-primary ring-1 ring-primary/30"
-                              : "hover:bg-muted/60 text-foreground"
+                            isSelected
+                              ? "ring-2 ring-primary/50 bg-primary/10 text-foreground"
+                              : !markType
+                                ? "hover:bg-muted/60 text-foreground"
+                                : "text-foreground"
                           }`}
                       >
                         {sentence.text}{" "}
@@ -153,12 +228,21 @@ export function ArticleReader({ passage }: { passage: Passage }) {
         <ScrollArea className="flex-1">
           <div className="p-5">
             {loading ? (
-              <div className="flex items-center gap-3 text-muted-foreground py-12 justify-center">
-                <Loader2 className="size-5 animate-spin" />
-                <span className="text-sm">AI 正在分析...</span>
-              </div>
+              <AnalysisSkeleton />
             ) : analysis ? (
-              <AnalysisContent analysis={analysis} sentence={selectedSentence} />
+              <AnalysisContent
+                analysis={analysis}
+                sentence={selectedSentence}
+                currentMark={
+                  selectedSentence ? marks.get(selectedSentence.index) ?? null : null
+                }
+                onMark={(type) => {
+                  if (selectedSentence) handleMark(selectedSentence.index, type);
+                }}
+                onClearMark={() => {
+                  if (selectedSentence) handleClearMark(selectedSentence.index);
+                }}
+              />
             ) : (
               <div className="text-center py-16 text-muted-foreground">
                 <BookOpen className="size-10 mx-auto mb-3 opacity-30" />
@@ -175,20 +259,61 @@ export function ArticleReader({ passage }: { passage: Passage }) {
         <WordPopover
           word={selection.word}
           sentence={selection.sentence}
+          sentenceIndex={selection.sentenceIndex}
           rect={selection.rect}
           passageId={passage.id}
           onClose={() => setSelection(null)}
         />
       )}
 
-      {/* ========== 移动端底部抽屉 ========== */}
+      {/* ========== 移动端底部浮动面板 ========== */}
       <MobileSheet
-        open={!!selectedSentence && !!analysis}
+        open={mobilePanelOpen}
         onClose={() => setSelectedSentence(null)}
         loading={loading}
         analysis={analysis}
         sentence={selectedSentence}
+        currentMark={
+          selectedSentence ? marks.get(selectedSentence.index) ?? null : null
+        }
+        onMark={(type) => {
+          if (selectedSentence) handleMark(selectedSentence.index, type);
+        }}
+        onClearMark={() => {
+          if (selectedSentence) handleClearMark(selectedSentence.index);
+        }}
       />
+    </div>
+  );
+}
+
+export function AnalysisSkeleton() {
+  return (
+    <div className="space-y-5 animate-pulse">
+      <div>
+        <div className="h-3 bg-muted rounded w-8 mb-1.5" />
+        <div className="space-y-2">
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-5/6" />
+        </div>
+      </div>
+      <Separator />
+      <div>
+        <div className="h-3 bg-muted rounded w-12 mb-1.5" />
+        <div className="space-y-2">
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-3/4" />
+          <div className="h-4 bg-muted rounded w-4/5" />
+        </div>
+      </div>
+      <Separator />
+      <div>
+        <div className="h-3 bg-muted rounded w-12 mb-1.5" />
+        <div className="space-y-2">
+          <div className="h-4 bg-muted rounded w-full" />
+          <div className="h-4 bg-muted rounded w-2/3" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -196,9 +321,15 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 function AnalysisContent({
   analysis,
   sentence,
+  currentMark,
+  onMark,
+  onClearMark,
 }: {
   analysis: TranslateResult;
   sentence: { index: number; text: string } | null;
+  currentMark: MarkType | null;
+  onMark: (type: MarkType) => void;
+  onClearMark: () => void;
 }) {
   return (
     <div className="space-y-5">
@@ -212,6 +343,17 @@ function AnalysisContent({
           {sentence?.text}
         </p>
       </div>
+
+      {/* 标记工具栏 */}
+      {sentence && (
+        <div className="py-1">
+          <MarkToolbar
+            currentMark={currentMark}
+            onMark={onMark}
+            onClear={onClearMark}
+          />
+        </div>
+      )}
 
       <Separator />
 
