@@ -17,7 +17,9 @@ export function sm2(
   if (quality < 3) {
     // 忘记 → 重置
     newInterval = 1;
-    return { interval: newInterval, easeFactor: newEaseFactor, repetitions: 0 };
+    const nextReview = new Date();
+    nextReview.setDate(nextReview.getDate() + 1);
+    return { interval: newInterval, easeFactor: newEaseFactor, repetitions: 0, nextReviewDate: nextReview.toISOString().split("T")[0] };
   }
 
   const reps = prevRepetitions + 1;

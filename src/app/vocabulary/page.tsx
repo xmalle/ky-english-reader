@@ -32,6 +32,7 @@ import {
   reviewVocabulary,
   deleteVocabulary,
 } from "@/lib/data";
+import { sm2 } from "@/lib/srs";
 import type { Vocabulary, Sm2Grade } from "@/lib/types";
 
 export default function VocabularyPage() {
@@ -60,25 +61,53 @@ export default function VocabularyPage() {
   }, [fetchData]);
 
   async function handleReview(vocabId: string, quality: Sm2Grade) {
+    const word = allWords.find(v => v.id === vocabId) ?? dueWords.find(v => v.id === vocabId);
+    if (!word) return;
+
+    // 乐观更新 UI
     setReviews((prev) => ({ ...prev, [vocabId]: quality }));
     setRated((prev) => ({ ...prev, [vocabId]: quality }));
-    // 评分后显示释义
     setRevealed((prev) => ({ ...prev, [vocabId]: true }));
+
+    // 本地计算新 SRS 数据
+    const srs = sm2(quality, word.interval, word.ease_factor, word.repetitions);
+
+    // 更新后的生词对象
+    const updated: Vocabulary = {
+      ...word,
+      interval: srs.interval,
+      ease_factor: srs.easeFactor,
+      repetitions: srs.repetitions,
+      next_review_date: srs.nextReviewDate,
+    };
+
+    // 从待复习列表移除，更新全部列表
+    setDueWords(prev => prev.filter(v => v.id !== vocabId));
+    setAllWords(prev => prev.map(v => v.id === vocabId ? updated : v));
+
+    // 后台同步到服务器
     const result = await reviewVocabulary(vocabId, quality);
     if (result.error) {
       toast.error(result.error);
-    } else {
-      await fetchData();
+      // 失败则回滚数据
+      const [all, due] = await Promise.all([getVocabulary(), getDueVocabulary()]);
+      setAllWords(all);
+      setDueWords(due);
     }
   }
 
   async function handleDelete(vocabId: string) {
+    // 乐观移除
+    setDueWords(prev => prev.filter(v => v.id !== vocabId));
+    setAllWords(prev => prev.filter(v => v.id !== vocabId));
     const result = await deleteVocabulary(vocabId);
     if (result.error) {
       toast.error(result.error);
+      const [all, due] = await Promise.all([getVocabulary(), getDueVocabulary()]);
+      setAllWords(all);
+      setDueWords(due);
     } else {
       toast.success("已删除");
-      await fetchData();
     }
   }
 
