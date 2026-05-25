@@ -18,9 +18,9 @@ interface VocabResult {
 interface Props {
   word: string;
   sentence: string;
-  sentenceIndex: number;
+  sentenceIndex?: number;
   rect: DOMRect;
-  passageId: string;
+  passageId?: string;
   onClose: () => void;
 }
 
@@ -36,39 +36,43 @@ export function WordPopover({ word, sentence, sentenceIndex, rect, passageId, on
     async function fetchVocab() {
       setLoading(true);
       try {
-        // 1. 先查缓存
-        const cached = await getCachedWordContextMeaning(
-          passageId,
-          sentenceIndex,
-          word,
-        );
-        if (cached) {
-          if (!cancelled) {
-            setResult({
-              word: cached.word,
-              basicMeaning: cached.basic_meaning,
-              contextMeaning: cached.context_meaning ?? undefined,
-            });
-            setLoading(false);
+        // 1. 先查缓存（仅有关联文章时）
+        if (passageId !== undefined && sentenceIndex !== undefined) {
+          const cached = await getCachedWordContextMeaning(
+            passageId,
+            sentenceIndex,
+            word,
+          );
+          if (cached) {
+            if (!cancelled) {
+              setResult({
+                word: cached.word,
+                basicMeaning: cached.basic_meaning,
+                contextMeaning: cached.context_meaning ?? undefined,
+              });
+              setLoading(false);
+            }
+            return;
           }
-          return;
         }
 
-        // 2. 缓存未命中，调用 AI
+        // 2. 缓存未命中或无 passageId，调用 AI
         const data = await chatVocab(word, sentence);
         if (!cancelled) {
           if (data.error) {
             toast.error(data.error);
           } else {
             setResult(data);
-            // 3. 异步存入缓存
-            saveWordContextMeaning(
-              passageId,
-              sentenceIndex,
-              word,
-              data.basicMeaning ?? "",
-              data.contextMeaning ?? "",
-            ).catch(() => {});
+            // 3. 异步存入缓存（仅有关联文章时）
+            if (passageId !== undefined && sentenceIndex !== undefined) {
+              saveWordContextMeaning(
+                passageId,
+                sentenceIndex,
+                word,
+                data.basicMeaning ?? "",
+                data.contextMeaning ?? "",
+              ).catch(() => {});
+            }
           }
         }
       } catch {

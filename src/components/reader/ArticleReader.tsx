@@ -49,6 +49,14 @@ export function ArticleReader({ passage }: { passage: Passage }) {
   // 移动端点词模式
   const [wordTapMode, setWordTapMode] = useState(false);
 
+  // 移动端词组选择模式
+  const [phraseMode, setPhraseMode] = useState(false);
+  const [phraseStart, setPhraseStart] = useState<{
+    word: string;
+    sentenceIdx: number;
+    wordIndex: number;
+  } | null>(null);
+
   // 全局句索引用 Ref 持久化
   const sentenceMap = useRef<Map<Element, number>>(new Map());
   const articleRef = useRef<HTMLDivElement>(null);
@@ -92,6 +100,11 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 
   const handleSentenceClick = useCallback(
     async (index: number, text: string) => {
+      // 词组模式下点击句子取消选择，不触发分析
+      if (phraseMode) {
+        setPhraseStart(null);
+        return;
+      }
       setSelectedSentence({ index, text });
       setLoading(true);
       setAnalysis(null);
@@ -155,13 +168,17 @@ export function ArticleReader({ passage }: { passage: Passage }) {
           return;
         }
 
-        // 检查选区是否在文章区域内
-        if (!articleRef.current) return;
+        // 检查选区是否在文章或题目区域内
         const range = sel.getRangeAt(0);
-        if (!articleRef.current.contains(range.commonAncestorContainer)) return;
+        const container = range.commonAncestorContainer;
+        const inArticle = articleRef.current?.contains(container);
+        const inQuestions = container instanceof Element
+          ? !!container.closest("[data-questions-panel]")
+          : false;
+        if (!inArticle && !inQuestions) return;
 
         const word = sel.toString().trim();
-        if (word.split(/\s+/).length > 3) return;
+        if (word.split(/\s+/).length > 6) return;
 
         const rect = range.getBoundingClientRect();
         const sentenceEl = range.startContainer.parentElement?.closest(
@@ -185,15 +202,52 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 
   const mobilePanelOpen = !!selectedSentence && (!!analysis || loading);
 
-  // 移动端点词查义
-  const handleWordTap = useCallback((e: React.MouseEvent, word: string, sentenceText: string, sentenceIdx: number) => {
-    if (!wordTapMode) return;
+  // 移动端点词/词组点击
+  const handleWordClick = useCallback((
+    e: React.MouseEvent,
+    word: string,
+    sentenceText: string,
+    sentenceIdx: number,
+    wordIndex: number,
+  ) => {
+    if (!wordTapMode && !phraseMode) return;
     e.stopPropagation();
     e.preventDefault();
+
+    if (phraseMode) {
+      if (!phraseStart || phraseStart.sentenceIdx !== sentenceIdx) {
+        // 第一次点击或不同句子：设为起始词
+        setPhraseStart({ word, sentenceIdx, wordIndex });
+      } else {
+        // 第二次点击同一句：计算词组范围
+        const start = Math.min(phraseStart.wordIndex, wordIndex);
+        const end = Math.max(phraseStart.wordIndex, wordIndex);
+        const words = splitWords(sentenceText)
+          .map((w) => w.replace(/[.,;:!?"']/g, ""))
+          .filter((w) => w.length > 0);
+        const phrase = words.slice(start, end + 1).join(" ");
+
+        wordTapRef.current = true;
+        const rect = (e.target as HTMLElement).getBoundingClientRect();
+        setSelection({ word: phrase, sentence: sentenceText, sentenceIndex: sentenceIdx, rect });
+        setPhraseStart(null);
+      }
+      return;
+    }
+
+    // wordTapMode：直接查义
     wordTapRef.current = true;
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setSelection({ word, sentence: sentenceText, sentenceIndex: sentenceIdx, rect });
-  }, [wordTapMode]);
+  }, [wordTapMode, phraseMode, phraseStart]);
+
+  // 题目区域选词回调
+  const handleQuestionWordSelect = useCallback(
+    (word: string, sentence: string, rect: DOMRect) => {
+      setSelection({ word, sentence, sentenceIndex: -1, rect });
+    },
+    [],
+  );
 
   // 拆分句子为单词（保持标点附着）
   function splitWords(text: string): string[] {
@@ -204,11 +258,14 @@ export function ArticleReader({ passage }: { passage: Passage }) {
     <div className="flex flex-1 overflow-hidden relative min-h-0">
       {/* ========== 左侧：文章阅读区 ========== */}
       <div className="flex-1 flex flex-col min-w-0 border-r min-h-0">
-        {/* 移动端点词模式按钮 */}
-        <div className="lg:hidden flex items-center gap-2 px-4 py-2 border-b shrink-0 bg-muted/30">
+        {/* 移动端点词/词组模式按钮 */}
+        <div className="lg:hidden flex items-center gap-2 px-4 py-2 border-b shrink-0 bg-muted/30 overflow-x-auto">
           <button
-            onClick={() => setWordTapMode(!wordTapMode)}
-            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+            onClick={() => {
+              setWordTapMode(!wordTapMode);
+              if (phraseMode) setPhraseMode(false);
+            }}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors shrink-0 ${
               wordTapMode
                 ? "bg-primary text-primary-foreground"
                 : "bg-background border text-muted-foreground hover:text-foreground"
@@ -217,12 +274,33 @@ export function ArticleReader({ passage }: { passage: Passage }) {
             <Pointer className="size-3.5" />
             {wordTapMode ? "点词模式开" : "点词查义"}
           </button>
+          <button
+            onClick={() => {
+              setPhraseMode(!phraseMode);
+              setPhraseStart(null);
+              if (wordTapMode) setWordTapMode(false);
+            }}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors shrink-0 ${
+              phraseMode
+                ? "bg-primary text-primary-foreground"
+                : "bg-background border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Pointer className="size-3.5" />
+            {phraseMode ? (phraseStart ? "点击结束词" : "词组选择中") : "词组选择"}
+          </button>
           {wordTapMode && (
-            <span className="text-xs text-muted-foreground">点击句中单词即可查义</span>
+            <span className="text-xs text-muted-foreground shrink-0">点击句中单词即可查义</span>
+          )}
+          {phraseMode && !phraseStart && (
+            <span className="text-xs text-muted-foreground shrink-0">点击起始词</span>
+          )}
+          {phraseMode && phraseStart && (
+            <span className="text-xs text-muted-foreground shrink-0">再点击结束词</span>
           )}
           <button
             onClick={() => setMobileQuestionsOpen(!mobileQuestionsOpen)}
-            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ml-auto ${
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ml-auto shrink-0 ${
               mobileQuestionsOpen
                 ? "bg-primary text-primary-foreground"
                 : "bg-background border text-muted-foreground hover:text-foreground"
@@ -281,25 +359,37 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                                 : "text-foreground"
                           }`}
                       >
-                        {words.map((w, wi) => (
+                        {words.map((w, wi) => {
+                          const cleanWord = w.replace(/[.,;:!?"']/g, "");
+                          const isClickable = wordTapMode || phraseMode;
+                          const isPhraseStart = phraseMode && phraseStart
+                            && phraseStart.sentenceIdx === globalIdx
+                            && phraseStart.wordIndex === wi;
+                          return (
                           <span
                             key={wi}
-                            data-word={w.replace(/[.,;:!?"']/g, "")}
-                            onClick={(e) => handleWordTap(
+                            data-word={cleanWord}
+                            data-word-index={wi}
+                            onClick={(e) => handleWordClick(
                               e,
-                              w.replace(/[.,;:!?"']/g, ""),
+                              cleanWord,
                               sentence.text,
-                              globalIdx
+                              globalIdx,
+                              wi,
                             )}
-                            className={
-                              wordTapMode
+                            className={`${
+                              isClickable
                                 ? "cursor-pointer hover:bg-primary/20 hover:rounded px-0.5 -mx-0.5 transition-colors"
                                 : ""
-                            }
+                            } ${
+                              isPhraseStart
+                                ? "bg-primary/30 rounded px-0.5 -mx-0.5 ring-1 ring-primary/50"
+                                : ""
+                            }`}
                           >
                             {w}{" "}
                           </span>
-                        ))}
+                        );})}
                       </span>
                     );
                   })}
@@ -363,11 +453,14 @@ export function ArticleReader({ passage }: { passage: Passage }) {
                 </div>
               )
             ) : (
-              <QuestionsPanel
-                passageId={passage.id}
-                year={passage.year}
-                textNum={passage.text_num}
-              />
+              <div data-questions-panel>
+                <QuestionsPanel
+                  passageId={passage.id}
+                  year={passage.year}
+                  textNum={passage.text_num}
+                  onWordSelect={handleQuestionWordSelect}
+                />
+              </div>
             )}
           </div>
         </ScrollArea>
@@ -405,7 +498,10 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 
       {/* ========== 移动端题目面板 ========== */}
       {mobileQuestionsOpen && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t rounded-t-xl shadow-lg max-h-[60vh] overflow-y-auto">
+        <div
+          data-questions-panel
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t rounded-t-xl shadow-lg max-h-[60vh] overflow-y-auto"
+        >
           <div className="flex items-center justify-between px-4 py-2.5 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
             <span className="text-sm font-medium flex items-center gap-1.5">
               <ClipboardList className="size-3.5" />
@@ -423,6 +519,7 @@ export function ArticleReader({ passage }: { passage: Passage }) {
               passageId={passage.id}
               year={passage.year}
               textNum={passage.text_num}
+              onWordSelect={handleQuestionWordSelect}
             />
           </div>
         </div>
