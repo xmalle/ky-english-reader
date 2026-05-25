@@ -205,3 +205,34 @@ CREATE POLICY "user_sentence_marks_all_open"
   ON user_sentence_marks FOR ALL
   USING (true)
   WITH CHECK (true);
+
+-- ============================================================
+-- questions: 阅读理解题目与选项
+-- ============================================================
+CREATE TABLE IF NOT EXISTS questions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  passage_id      UUID NOT NULL REFERENCES passages(id) ON DELETE CASCADE,
+  question_number SMALLINT NOT NULL,
+  question_text   TEXT NOT NULL,
+  option_a        TEXT NOT NULL,
+  option_b        TEXT NOT NULL,
+  option_c        TEXT NOT NULL,
+  option_d        TEXT NOT NULL,
+  correct_answer  CHAR(1) CHECK (correct_answer IN ('A', 'B', 'C', 'D')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE(passage_id, question_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_questions_passage
+  ON questions(passage_id);
+
+ALTER TABLE questions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "questions_read_all"
+  ON questions FOR SELECT
+  USING (true);
+
+CREATE POLICY "questions_insert_admin"
+  ON questions FOR INSERT
+  WITH CHECK (true);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Languages, GitBranch, BookOpen, Pointer } from "lucide-react";
+import { Languages, GitBranch, BookOpen, Pointer, ClipboardList, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { WordPopover } from "./WordPopover";
 import { MobileSheet } from "./MobileSheet";
 import { MarkToolbar, MARK_STYLES } from "./MarkToolbar";
+import { QuestionsPanel } from "./QuestionsPanel";
 import { chatTranslation } from "@/lib/ai";
 import {
   getCachedSentenceAnalysis,
@@ -55,6 +56,12 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 
   // 句子标记状态：sentence_index → mark_type
   const [marks, setMarks] = useState<Map<number, MarkType>>(new Map());
+
+  // 右侧面板标签页
+  const [rightTab, setRightTab] = useState<"analysis" | "questions">("analysis");
+
+  // 移动端题目面板
+  const [mobileQuestionsOpen, setMobileQuestionsOpen] = useState(false);
 
   // 加载当前文章的标记
   useEffect(() => {
@@ -213,6 +220,17 @@ export function ArticleReader({ passage }: { passage: Passage }) {
           {wordTapMode && (
             <span className="text-xs text-muted-foreground">点击句中单词即可查义</span>
           )}
+          <button
+            onClick={() => setMobileQuestionsOpen(!mobileQuestionsOpen)}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ml-auto ${
+              mobileQuestionsOpen
+                ? "bg-primary text-primary-foreground"
+                : "bg-background border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ClipboardList className="size-3.5" />
+            题目
+          </button>
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <article
@@ -294,36 +312,62 @@ export function ArticleReader({ passage }: { passage: Passage }) {
 
       {/* ========== 右侧：解析面板（桌面端） ========== */}
       <aside className="hidden lg:flex w-[380px] shrink-0 flex-col bg-card/50">
-        <div className="px-5 py-4 border-b">
-          <h3 className="font-semibold text-sm flex items-center gap-2">
-            <Languages className="size-4" />
+        <div className="px-5 py-4 border-b flex items-center gap-1">
+          <button
+            onClick={() => setRightTab("analysis")}
+            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${
+              rightTab === "analysis"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Languages className="size-3.5" />
             精读解析
-          </h3>
+          </button>
+          <button
+            onClick={() => setRightTab("questions")}
+            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${
+              rightTab === "questions"
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ClipboardList className="size-3.5" />
+            题目
+          </button>
         </div>
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-5">
-            {loading ? (
-              <AnalysisSkeleton />
-            ) : analysis ? (
-              <AnalysisContent
-                analysis={analysis}
-                sentence={selectedSentence}
-                currentMark={
-                  selectedSentence ? marks.get(selectedSentence.index) ?? null : null
-                }
-                onMark={(type) => {
-                  if (selectedSentence) handleMark(selectedSentence.index, type);
-                }}
-                onClearMark={() => {
-                  if (selectedSentence) handleClearMark(selectedSentence.index);
-                }}
-              />
+            {rightTab === "analysis" ? (
+              loading ? (
+                <AnalysisSkeleton />
+              ) : analysis ? (
+                <AnalysisContent
+                  analysis={analysis}
+                  sentence={selectedSentence}
+                  currentMark={
+                    selectedSentence ? marks.get(selectedSentence.index) ?? null : null
+                  }
+                  onMark={(type) => {
+                    if (selectedSentence) handleMark(selectedSentence.index, type);
+                  }}
+                  onClearMark={() => {
+                    if (selectedSentence) handleClearMark(selectedSentence.index);
+                  }}
+                />
+              ) : (
+                <div className="text-center py-16 text-muted-foreground">
+                  <BookOpen className="size-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">点击左侧任意句子</p>
+                  <p className="text-xs mt-1">查看精翻译文和语法分析</p>
+                </div>
+              )
             ) : (
-              <div className="text-center py-16 text-muted-foreground">
-                <BookOpen className="size-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">点击左侧任意句子</p>
-                <p className="text-xs mt-1">查看精翻译文和语法分析</p>
-              </div>
+              <QuestionsPanel
+                passageId={passage.id}
+                year={passage.year}
+                textNum={passage.text_num}
+              />
             )}
           </div>
         </ScrollArea>
@@ -358,6 +402,31 @@ export function ArticleReader({ passage }: { passage: Passage }) {
           if (selectedSentence) handleClearMark(selectedSentence.index);
         }}
       />
+
+      {/* ========== 移动端题目面板 ========== */}
+      {mobileQuestionsOpen && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t rounded-t-xl shadow-lg max-h-[60vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+            <span className="text-sm font-medium flex items-center gap-1.5">
+              <ClipboardList className="size-3.5" />
+              {passage.year} {passage.text_num} 题目
+            </span>
+            <button
+              onClick={() => setMobileQuestionsOpen(false)}
+              className="p-1 rounded-md hover:bg-muted transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="p-4 pb-8">
+            <QuestionsPanel
+              passageId={passage.id}
+              year={passage.year}
+              textNum={passage.text_num}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

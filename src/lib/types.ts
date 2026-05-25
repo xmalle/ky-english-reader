@@ -81,3 +81,17 @@ export interface WordContextMeaning {
   context_meaning: string | null;
   created_at: string;
 }
+
+/** 阅读理解题目 */
+export interface Question {
+  id: string;
+  passage_id: string;
+  question_number: number;
+  question_text: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: "A" | "B" | "C" | "D" | null;
+  created_at: string;
+}

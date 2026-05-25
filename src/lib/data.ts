@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/client";
 import { parsePassageText } from "@/lib/parser";
 import { sm2 } from "@/lib/srs";
 import { DEFAULT_USER_ID } from "@/lib/constants";
-import type { Passage, Vocabulary, SentenceAnalysis, WordContextMeaning, SentenceMark, MarkType, Sm2Grade } from "@/lib/types";
+import type { Passage, Vocabulary, SentenceAnalysis, WordContextMeaning, SentenceMark, MarkType, Sm2Grade, Question } from "@/lib/types";
 
 const supabase = createClient();
 
@@ -295,4 +295,19 @@ export async function deleteSentenceMark(
     .eq("sentence_index", sentenceIndex);
 
   if (error) console.error("删除句子标记失败:", error.message);
+}
+
+// ============================================================
+// 阅读理解题目
+// ============================================================
+
+export async function getQuestions(passageId: string): Promise<Question[]> {
+  const { data, error } = await supabase
+    .from("questions")
+    .select("*")
+    .eq("passage_id", passageId)
+    .order("question_number", { ascending: true });
+
+  if (error || !data) return [];
+  return data as Question[];
 }
