@@ -60,19 +60,19 @@ export default function VocabularyPage() {
     fetchData();
   }, [fetchData]);
 
-  async function handleReview(vocabId: string, quality: Sm2Grade) {
-    const word = allWords.find(v => v.id === vocabId) ?? dueWords.find(v => v.id === vocabId);
-    if (!word) return;
-
-    // 乐观更新 UI
+  async function handleRate(vocabId: string, quality: Sm2Grade) {
+    // 第一步：评分，显示释义，保留在列表
     setReviews((prev) => ({ ...prev, [vocabId]: quality }));
     setRated((prev) => ({ ...prev, [vocabId]: quality }));
     setRevealed((prev) => ({ ...prev, [vocabId]: true }));
+  }
 
-    // 本地计算新 SRS 数据
+  async function handleConfirm(vocabId: string, quality: Sm2Grade) {
+    const word = allWords.find(v => v.id === vocabId) ?? dueWords.find(v => v.id === vocabId);
+    if (!word) return;
+
+    // 第二步：确认，从列表移除
     const srs = sm2(quality, word.interval, word.ease_factor, word.repetitions);
-
-    // 更新后的生词对象
     const updated: Vocabulary = {
       ...word,
       interval: srs.interval,
@@ -81,15 +81,12 @@ export default function VocabularyPage() {
       next_review_date: srs.nextReviewDate,
     };
 
-    // 从待复习列表移除，更新全部列表
     setDueWords(prev => prev.filter(v => v.id !== vocabId));
     setAllWords(prev => prev.map(v => v.id === vocabId ? updated : v));
 
-    // 后台同步到服务器
     const result = await reviewVocabulary(vocabId, quality);
     if (result.error) {
       toast.error(result.error);
-      // 失败则回滚数据
       const [all, due] = await Promise.all([getVocabulary(), getDueVocabulary()]);
       setAllWords(all);
       setDueWords(due);
@@ -326,24 +323,31 @@ export default function VocabularyPage() {
                 {tab === "review" && (
                   <>
                     <Separator className="my-3" />
-                    <div className="flex gap-2">
-                      {qualityLabels.map(({ grade, label, variant }) => (
-                        <Button
-                          key={grade}
-                          variant={variant}
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleReview(v.id, grade)}
-                          disabled={reviews[v.id] !== undefined}
-                        >
-                          {reviews[v.id] === grade ? (
-                            <Check className="size-4" />
-                          ) : (
-                            label
-                          )}
-                        </Button>
-                      ))}
-                    </div>
+                    {reviews[v.id] !== undefined ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleConfirm(v.id, reviews[v.id]!)}
+                      >
+                        <Check className="size-4 mr-1.5" />
+                        确认（{qualityLabels.find(q => q.grade === reviews[v.id])?.label}）
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        {qualityLabels.map(({ grade, label, variant }) => (
+                          <Button
+                            key={grade}
+                            variant={variant}
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handleRate(v.id, grade)}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>
