@@ -41,6 +41,8 @@ export default function VocabularyPage() {
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState<Record<string, Sm2Grade | null>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [rated, setRated] = useState<Record<string, Sm2Grade | null>>({});
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,9 @@ export default function VocabularyPage() {
 
   async function handleReview(vocabId: string, quality: Sm2Grade) {
     setReviews((prev) => ({ ...prev, [vocabId]: quality }));
+    setRated((prev) => ({ ...prev, [vocabId]: quality }));
+    // 评分后显示释义
+    setRevealed((prev) => ({ ...prev, [vocabId]: true }));
     const result = await reviewVocabulary(vocabId, quality);
     if (result.error) {
       toast.error(result.error);
@@ -219,21 +224,32 @@ export default function VocabularyPage() {
                     {/* 单词 */}
                     <h3 className="font-bold text-lg">{v.word}</h3>
 
-                    {/* 释义 */}
-                    <div className="mt-2 space-y-1 text-sm">
-                      <p>
-                        <span className="text-muted-foreground">基本释义：</span>
-                        {v.basic_meaning}
-                      </p>
-                      {v.context_meaning && (
+                    {/* 释义（复习模式需评分后才显示） */}
+                    {tab !== "review" || revealed[v.id] ? (
+                      <div className="mt-2 space-y-1 text-sm">
                         <p>
-                          <span className="text-muted-foreground">语境释义：</span>
-                          <span className="text-primary font-medium">
-                            {v.context_meaning}
-                          </span>
+                          <span className="text-muted-foreground">基本释义：</span>
+                          {v.basic_meaning}
                         </p>
-                      )}
-                    </div>
+                        {v.context_meaning && (
+                          <p>
+                            <span className="text-muted-foreground">语境释义：</span>
+                            <span className="text-primary font-medium">
+                              {v.context_meaning}
+                            </span>
+                          </p>
+                        )}
+                        {rated[v.id] !== undefined && (
+                          <Badge variant="secondary" className="text-xs mt-1">
+                            {qualityLabels.find(q => q.grade === rated[v.id])?.label}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted-foreground italic">
+                        评分后显示释义
+                      </p>
+                    )}
 
                     {/* 原句（可展开） */}
                     <div className="mt-2">
