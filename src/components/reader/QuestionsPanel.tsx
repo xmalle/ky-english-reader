@@ -41,7 +41,7 @@ function WordClickableText({
             }}
             className="cursor-pointer hover:bg-primary/20 hover:rounded px-0.5 -mx-0.5 transition-colors"
           >
-            {w}
+            {w}{" "}
           </span>
         ) : (
           <span key={i}>{w}</span>
