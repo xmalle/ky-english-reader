@@ -27,9 +27,9 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://sgkaybgsuvgjhddmjkct.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_n1JVhD8C3QSfxFCuLNhnbw_cg0dTF1c"
-          NEXT_PUBLIC_AI_API_KEY: "sk-b073a5282ed541a7bc1e1d5af780bad4"
-          NEXT_PUBLIC_AI_BASE_URL: "https://api.deepseek.com"
-          NEXT_PUBLIC_AI_MODEL: "deepseek-chat"
+          NEXT_PUBLIC_AI_API_KEY: "tp-s46ldmyfvx40j4nyc0r9527n1vra3klr4psjtwo69z2of65b"
+          NEXT_PUBLIC_AI_BASE_URL: "https://token-plan-sgp.xiaomimimo.com/v1"
+          NEXT_PUBLIC_AI_MODEL: "mimo-v2.5-pro"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out
