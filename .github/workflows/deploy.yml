@@ -29,7 +29,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_n1JVhD8C3QSfxFCuLNhnbw_cg0dTF1c"
           NEXT_PUBLIC_AI_API_KEY: "sk-b073a5282ed541a7bc1e1d5af780bad4"
           NEXT_PUBLIC_AI_BASE_URL: "https://api.deepseek.com"
-          NEXT_PUBLIC_AI_MODEL: "deepseek-chat"
+          NEXT_PUBLIC_AI_MODEL: "deepseek-v4-flash"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out
